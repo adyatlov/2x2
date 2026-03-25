@@ -23,11 +23,7 @@ COPY index.html tsconfig.json vite.config.ts ./
 # Generate client bindings (compiles module locally, no server needed)
 RUN spacetime generate --lang typescript --out-dir src/module_bindings --module-path spacetimedb
 
-# Build client (Vite) with configurable SpacetimeDB connection
-ARG VITE_SPACETIMEDB_HOST=ws://localhost:3000
-ARG VITE_SPACETIMEDB_DB_NAME=game
-ENV VITE_SPACETIMEDB_HOST=$VITE_SPACETIMEDB_HOST
-ENV VITE_SPACETIMEDB_DB_NAME=$VITE_SPACETIMEDB_DB_NAME
+# Build client (Vite) — WS URL auto-detected from page location at runtime
 RUN npm run build
 
 # ============================================================

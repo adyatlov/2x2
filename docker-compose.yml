@@ -1,11 +1,14 @@
 services:
   spacetimedb:
     image: clockworklabs/spacetime
+    container_name: 2x2-spacetimedb
     command: start
-    ports:
-      - "3000:3000"
+    restart: unless-stopped
     volumes:
       - stdb-data:/stdb/data
+    networks:
+      - default
+      - proxy
     healthcheck:
       test: ["CMD", "curl", "-sf", "http://localhost:3000/v1/ping"]
       interval: 2s
@@ -21,20 +24,27 @@ services:
       spacetimedb:
         condition: service_healthy
     environment:
-      SPACETIMEDB_SERVER: http://spacetimedb:3000
+      SPACETIMEDB_SERVER: http://2x2-spacetimedb:3000
       SPACETIMEDB_DB_NAME: game
+    networks:
+      - default
 
   client:
     build:
       context: .
       target: client
-      args:
-        VITE_SPACETIMEDB_HOST: ws://localhost:3000
-    ports:
-      - "80:80"
+    container_name: 2x2-client
+    restart: unless-stopped
     depends_on:
       init:
         condition: service_completed_successfully
+    networks:
+      - default
+      - proxy
 
 volumes:
   stdb-data:
+
+networks:
+  proxy:
+    external: true
