@@ -89,6 +89,14 @@ export function createGame(canvas: HTMLCanvasElement) {
     }
   }
 
+  function removeSquare(id: bigint) {
+    squares.delete(id);
+  }
+
+  function clearAll() {
+    squares.clear();
+  }
+
   function getColWidth(): number {
     return canvas.width / config.numColumns;
   }
@@ -207,6 +215,8 @@ export function createGame(canvas: HTMLCanvasElement) {
     setConfig,
     addSquare,
     updateSquare,
+    removeSquare,
+    clearAll,
     colFromX,
     yStartFromY,
     start,

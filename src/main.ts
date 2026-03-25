@@ -54,6 +54,10 @@ const conn = DbConnection.builder()
       game.updateSquare(sq);
     });
 
+    conn.db.square.onDelete((_ctx, sq) => {
+      game.removeSquare(sq.id);
+    });
+
     conn.db.config.onUpdate((_ctx, _old, config) => {
       game.setConfig(config);
     });
@@ -70,6 +74,11 @@ const conn = DbConnection.builder()
     statusEl.style.color = '#e94560';
   })
   .build();
+
+// Nuke button
+document.getElementById('nuke')!.addEventListener('click', () => {
+  conn.reducers.clearField();
+});
 
 // Click to drop a square
 canvas.addEventListener('click', (e) => {

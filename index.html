@@ -33,11 +33,34 @@
         pointer-events: none;
         z-index: 10;
       }
+      #nuke {
+        position: fixed;
+        top: 12px;
+        right: 48px;
+        z-index: 10;
+        background: transparent;
+        color: #666;
+        border: 1px solid #333;
+        width: 28px;
+        height: 28px;
+        padding: 0;
+        font-size: 16px;
+        line-height: 28px;
+        text-align: center;
+        cursor: pointer;
+        border-radius: 4px;
+        transition: color 0.2s, border-color 0.2s;
+      }
+      #nuke:hover {
+        color: #e94560;
+        border-color: #e94560;
+      }
     </style>
   </head>
   <body>
     <canvas id="game"></canvas>
     <div id="status">connecting...</div>
+    <button id="nuke" title="Clear all squares">&#x1F4A5;</button>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

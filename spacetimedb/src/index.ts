@@ -92,6 +92,14 @@ export const onDisconnect = spacetimedb.clientDisconnected((ctx) => {
   }
 });
 
+// --- Clear Field ---
+
+export const clearField = spacetimedb.reducer((ctx) => {
+  for (const sq of [...ctx.db.square.iter()]) {
+    ctx.db.square.id.delete(sq.id);
+  }
+});
+
 // --- Main Reducer ---
 
 export const placeSquare = spacetimedb.reducer(
