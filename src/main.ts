@@ -4,7 +4,7 @@ import { createGame } from './game';
 
 const HOST =
   import.meta.env.VITE_SPACETIMEDB_HOST ??
-  `${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}/db`;
+  `${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}`;
 const DB_NAME = import.meta.env.VITE_SPACETIMEDB_DB_NAME ?? 'game';
 
 const canvas = document.getElementById('game') as HTMLCanvasElement;
