@@ -3,7 +3,7 @@ import { type Identity } from 'spacetimedb';
 import { createGame } from './game';
 
 const HOST = import.meta.env.VITE_SPACETIMEDB_HOST ?? 'ws://localhost:3000';
-const DB_NAME = import.meta.env.VITE_SPACETIMEDB_DB_NAME ?? '2x2';
+const DB_NAME = import.meta.env.VITE_SPACETIMEDB_DB_NAME ?? 'game';
 
 const canvas = document.getElementById('game') as HTMLCanvasElement;
 const statusEl = document.getElementById('status')!;

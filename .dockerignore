@@ -1,0 +1,10 @@
+node_modules/
+dist/
+src/module_bindings/
+.playwright-mcp/
+.env.local
+spacetime.local.json
+.git/
+.claude/
+.cursor/
+.github/

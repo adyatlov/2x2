@@ -1,0 +1,40 @@
+services:
+  spacetimedb:
+    image: clockworklabs/spacetime
+    command: start
+    ports:
+      - "3000:3000"
+    volumes:
+      - stdb-data:/stdb/data
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:3000/v1/ping"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+      start_period: 5s
+
+  init:
+    build:
+      context: .
+      target: publisher
+    depends_on:
+      spacetimedb:
+        condition: service_healthy
+    environment:
+      SPACETIMEDB_SERVER: http://spacetimedb:3000
+      SPACETIMEDB_DB_NAME: game
+
+  client:
+    build:
+      context: .
+      target: client
+      args:
+        VITE_SPACETIMEDB_HOST: ws://localhost:3000
+    ports:
+      - "80:80"
+    depends_on:
+      init:
+        condition: service_completed_successfully
+
+volumes:
+  stdb-data:
