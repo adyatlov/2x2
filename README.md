@@ -76,4 +76,4 @@ For production behind a reverse proxy (e.g., Caddy), the containers join an exte
 
 - **Server:** SpacetimeDB v2 with TypeScript module
 - **Client:** Vanilla TypeScript + HTML Canvas, bundled by Vite
-- **Deployment:** Docker Compose + Caddy reverse proxy
+- **Deployment:** Docker Compose
