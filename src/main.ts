@@ -166,13 +166,11 @@ const conn = DbConnection.builder()
 gravitySlider.addEventListener('input', () => {
   gravityVal.textContent = gravitySlider.value;
 });
-gravitySlider.addEventListener('change', () => {
-  conn.reducers.setGravity({ gravity: Number(gravitySlider.value) });
-});
 
-// --- Save player settings ---
+// --- Save all settings ---
 saveBtn.addEventListener('click', () => {
   conn.reducers.setPlayerInfo({ name: nameInput.value, colorIndex: selectedColor });
+  conn.reducers.setGravity({ gravity: Number(gravitySlider.value) });
   game.setPlayerColor(selectedColor);
   overlay.classList.remove('open');
 });
