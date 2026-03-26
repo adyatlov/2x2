@@ -17,6 +17,8 @@ const nameInput = document.getElementById('name-input') as HTMLInputElement;
 const colorGrid = document.getElementById('color-grid')!;
 const saveBtn = document.getElementById('save-btn')!;
 const nukeBtn = document.getElementById('nuke-btn')!;
+const gravitySlider = document.getElementById('gravity-slider') as HTMLInputElement;
+const gravityVal = document.getElementById('gravity-val')!;
 
 const game = createGame(canvas);
 
@@ -71,7 +73,11 @@ const conn = DbConnection.builder()
       .onApplied(() => {
         // Load config
         const config = conn.db.config.id.find(0);
-        if (config) game.setConfig(config);
+        if (config) {
+          game.setConfig(config);
+          gravitySlider.value = String(config.gravity);
+          gravityVal.textContent = String(config.gravity);
+        }
 
         // Set player info from DB
         const player = conn.db.player.identity.find(identity);
@@ -130,7 +136,11 @@ const conn = DbConnection.builder()
     // Live updates — player info changes don't need cursor refresh
     // (cursor events will pick up new names on next move)
 
-    conn.db.config.onUpdate((_ctx, _old, config) => game.setConfig(config));
+    conn.db.config.onUpdate((_ctx, _old, config) => {
+      game.setConfig(config);
+      gravitySlider.value = String(config.gravity);
+      gravityVal.textContent = String(config.gravity);
+    });
   })
   .onDisconnect(() => {
     console.log('Disconnected — will reconnect in 2s');
@@ -151,6 +161,14 @@ const conn = DbConnection.builder()
     statusEl.style.color = '#e94560';
   })
   .build();
+
+// --- Gravity slider ---
+gravitySlider.addEventListener('input', () => {
+  gravityVal.textContent = gravitySlider.value;
+});
+gravitySlider.addEventListener('change', () => {
+  conn.reducers.setGravity({ gravity: Number(gravitySlider.value) });
+});
 
 // --- Save player settings ---
 saveBtn.addEventListener('click', () => {

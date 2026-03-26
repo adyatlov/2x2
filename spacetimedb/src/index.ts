@@ -130,6 +130,18 @@ export const updateCursor = spacetimedb.reducer(
   }
 );
 
+// --- Game Settings ---
+
+export const setGravity = spacetimedb.reducer(
+  { gravity: t.f64() },
+  (ctx, { gravity }) => {
+    if (gravity < 5 || gravity > 500) throw new Error('Gravity out of range (5-500)');
+    const config = ctx.db.config.id.find(0);
+    if (!config) throw new Error('Config not found');
+    ctx.db.config.id.update({ ...config, gravity });
+  }
+);
+
 // --- Player Settings ---
 
 export const setPlayerInfo = spacetimedb.reducer(

@@ -147,6 +147,13 @@
         transform: scale(1.1);
       }
 
+      /* Slider */
+      #gravity-slider {
+        width: 100%;
+        margin-top: 6px;
+        accent-color: #4cc9f0;
+      }
+
       /* Divider */
       .dialog-divider {
         border: none;
@@ -197,6 +204,9 @@
 
         <label>Color</label>
         <div class="color-grid" id="color-grid"></div>
+
+        <label for="gravity-slider">Gravity: <span id="gravity-val">60</span></label>
+        <input id="gravity-slider" type="range" min="5" max="500" step="5" value="60" />
 
         <hr class="dialog-divider" />
 
