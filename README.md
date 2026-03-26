@@ -44,12 +44,14 @@ With a traditional stack (app server + Postgres + WebSocket layer), the write pa
 
 Each of these is solvable, but each requires code: a pub/sub layer (Redis?), a WebSocket connection manager, a state serialization protocol, a reconnection/replay mechanism.
 
-**SpacetimeDB collapses all of this into one primitive.** The transaction commit **is** the broadcast. Subscribers see every committed change, in order, automatically. A new client subscribing gets the current state as a snapshot, then a live stream of changes. There is no gap between "data written" and "clients notified" — they're the same operation.
+**SpacetimeDB collapses all of this into one primitive.** There is no network between the logic and the data — reducers run inside the database process, reading and writing rows in the same memory space. No query serialization, no connection pooling, no round-trips. Then the transaction commit **is** the broadcast. Subscribers see every committed change, in order, automatically. A new client subscribing gets the current state as a snapshot, then a live stream of changes. There is no gap between "data written" and "clients notified" — they're the same operation.
 
 For this demo, that means:
 - The `placeSquare` reducer inserts/updates rows → clients see squares appear and adjust mid-flight. Zero notification code.
 - The `cursorEvent` table inserts a transient row → all clients see the cursor move → the row is deleted. Zero pub/sub code.
 - A player refreshes the page → subscription replays the full `square` table → the world rebuilds itself. Zero state-sync code.
+
+In a traditional stack, the `placeSquare` operation would involve 3 database round-trips (read column → compute → write results), each adding latency from network, serialization, and query parsing. Here, it's a single in-process function call with direct memory access to the tables.
 
 The space-time model (spatial data + temporal subscriptions) turns what would be ~500 lines of server infrastructure into a database schema and a few reducers.
 
