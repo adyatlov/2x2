@@ -32,6 +32,27 @@ The server resolves this with a **greedy slot assignment algorithm** that runs i
 
 This runs in O(n²) where n is the number of in-flight squares in one column — typically 1–5. Each reducer call is a single atomic transaction, so concurrent drops are serialized by the database.
 
+## Scheduled Settling: The Database as a Timer
+
+When a square is placed, we know exactly when it will land: `t_end = t_start + √(2·distance/gravity)`. But how do we mark it as `settled: true` at that exact moment?
+
+SpacetimeDB has **schedule tables** — a table with a `ScheduleAt` field that triggers a reducer when the time arrives. When a square is placed, we insert a row into the `settle_schedule` table with a delay equal to the fall duration:
+
+```typescript
+const delayMs = Math.ceil(tEndMs - Date.now());
+ctx.db.settleSchedule.insert({
+  scheduledId: 0n,
+  scheduledAt: ScheduleAt.interval(BigInt(delayMs) * 1000n),
+  squareId: newSquare.id,
+});
+```
+
+The database waits, then calls the `settleSquare` reducer at the right moment. The reducer marks the square as settled, the `onUpdate` broadcasts to all clients, and any new client joining sees the square in its final state immediately — no animation replay.
+
+**Rescheduling on conflict:** When a new square enters a column and shifts other in-flight squares up, their landing times change. We insert new schedule rows for the updated times. The old schedules still fire, but the reducer is idempotent — it checks `if (!sq.settled)` and skips squares that were already settled by an earlier schedule. Duplicate schedules are harmless.
+
+In a traditional stack, you'd need an external timer (cron, `setTimeout` in an app server, Redis key expiration) that lives outside your transaction model. Here, the timer is a database row — same transactional guarantees, same subscription broadcasts, no external coordination.
+
 ## Why SpacetimeDB — Could This Be Done with Postgres?
 
 The physics algorithm itself is portable — it's just math inside a transaction. You could run the same `placeSquare` logic in a Postgres stored procedure or an app server. **The difference is what happens after the transaction commits.**
