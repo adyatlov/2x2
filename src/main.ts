@@ -31,6 +31,12 @@ const conn = DbConnection.builder()
           game.setConfig(config);
         }
 
+        // Set player color from player table
+        const player = conn.db.player.identity.find(identity);
+        if (player) {
+          game.setPlayerColor(player.colorIndex);
+        }
+
         // Load existing squares
         for (const sq of conn.db.square.iter()) {
           game.addSquare(sq);
@@ -79,12 +85,13 @@ const conn = DbConnection.builder()
 
 // Nuke button
 document.getElementById('nuke')!.addEventListener('click', () => {
-  conn.reducers.clearField();
+  conn.reducers.clearField({});
 });
 
 // Click to drop a square
 canvas.addEventListener('click', (e) => {
   const col = game.colFromX(e.clientX);
   const yStart = game.yStartFromY(e.clientY);
+  game.spawnGhost(col, yStart); // instant visual feedback
   conn.reducers.placeSquare({ col, yStart });
 });

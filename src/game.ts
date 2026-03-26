@@ -18,6 +18,7 @@ interface LocalSquare {
   settled: boolean;
   colorIndex: number;
   visuallySettled: boolean;
+  ghost?: boolean; // optimistic client-side square, not yet confirmed by server
 }
 
 interface GameConfig {
@@ -38,6 +39,8 @@ export function createGame(canvas: HTMLCanvasElement) {
   const squares = new Map<bigint, LocalSquare>();
   let running = false;
   let hoverCol = -1;
+  let ghostCounter = -1n; // negative IDs for ghosts
+  let playerColorIndex = 0;
 
   // --- Public API ---
 
@@ -45,6 +48,36 @@ export function createGame(canvas: HTMLCanvasElement) {
     config.numColumns = c.numColumns;
     config.numRows = c.numRows;
     config.gravity = c.gravity;
+  }
+
+  function setPlayerColor(colorIndex: number) {
+    playerColorIndex = colorIndex;
+  }
+
+  // Spawn a ghost square immediately on click (before server responds)
+  function spawnGhost(col: number, yStart: number): bigint {
+    const id = ghostCounter--;
+    const nowMs = Date.now();
+    // Estimate yEnd: count squares in this column + 1
+    let count = 0;
+    for (const sq of squares.values()) {
+      if (sq.col === col) count++;
+    }
+    const yEnd = config.numRows - 1 - count;
+
+    squares.set(id, {
+      id,
+      col,
+      yStart,
+      tStartMs: nowMs,
+      yEnd,
+      tEndMs: nowMs + Math.sqrt((2 * Math.max(0, yEnd - yStart)) / config.gravity) * 1000,
+      settled: false,
+      colorIndex: playerColorIndex,
+      visuallySettled: false,
+      ghost: true,
+    });
+    return id;
   }
 
   function addSquare(row: {
@@ -57,6 +90,13 @@ export function createGame(canvas: HTMLCanvasElement) {
     settled: boolean;
     colorIndex: number;
   }) {
+    // Try to replace a matching ghost in the same column
+    for (const [ghostId, sq] of squares) {
+      if (sq.ghost && sq.col === row.col && Math.abs(sq.yStart - row.yStart) < 0.5) {
+        squares.delete(ghostId);
+        break;
+      }
+    }
     squares.set(row.id, {
       ...row,
       visuallySettled: row.settled,
@@ -176,9 +216,11 @@ export function createGame(canvas: HTMLCanvasElement) {
 
       const pixelX = sq.col * colW;
       const pixelY = currentY * rowH;
+      const alpha = sq.ghost ? 0.4 : 1.0;
 
       // Square body
       const color = COLORS[sq.colorIndex % COLORS.length];
+      ctx.globalAlpha = alpha;
       ctx.fillStyle = color;
       ctx.fillRect(pixelX + 1, pixelY + 1, colW - 2, rowH - 2);
 
@@ -186,6 +228,7 @@ export function createGame(canvas: HTMLCanvasElement) {
       ctx.fillStyle = 'rgba(255, 255, 255, 0.15)';
       ctx.fillRect(pixelX + 2, pixelY + 2, colW - 4, 2);
       ctx.fillRect(pixelX + 2, pixelY + 2, 2, rowH - 4);
+      ctx.globalAlpha = 1.0;
     }
   }
 
@@ -213,6 +256,8 @@ export function createGame(canvas: HTMLCanvasElement) {
 
   return {
     setConfig,
+    setPlayerColor,
+    spawnGhost,
     addSquare,
     updateSquare,
     removeSquare,
