@@ -116,9 +116,11 @@ export function createGame(canvas: HTMLCanvasElement) {
         break;
       }
     }
+    // If the square already landed (tEndMs in the past), settle it immediately
+    const alreadyLanded = row.settled || serverNow() >= row.tEndMs;
     squares.set(row.id, {
       ...row,
-      visuallySettled: row.settled,
+      visuallySettled: alreadyLanded,
     });
   }
 

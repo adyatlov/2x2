@@ -94,9 +94,11 @@ const conn = DbConnection.builder()
           updateColorSelection();
         }
 
-        // Load existing squares
+        // No manual square loading needed — onInsert fires for initial data too.
+        // Calibrate clock from existing squares so they render at correct positions.
         for (const sq of conn.db.square.iter()) {
-          game.addSquare(sq);
+          game.calibrateClock(sq.tStartMs);
+          break; // one sample is enough
         }
 
         // Subscribe to cursor events (event tables need explicit subscription)
