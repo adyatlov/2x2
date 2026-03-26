@@ -32,6 +32,27 @@ The server resolves this with a **greedy slot assignment algorithm** that runs i
 
 This runs in O(n²) where n is the number of in-flight squares in one column — typically 1–5. Each reducer call is a single atomic transaction, so concurrent drops are serialized by the database.
 
+## Why SpacetimeDB — Could This Be Done with Postgres?
+
+The physics algorithm itself is portable — it's just math inside a transaction. You could run the same `placeSquare` logic in a Postgres stored procedure or an app server. **The difference is what happens after the transaction commits.**
+
+With a traditional stack (app server + Postgres + WebSocket layer), the write path and the notification path are separate systems:
+
+1. App server receives the click, opens a DB transaction, computes positions, commits
+2. App server then serializes the changed rows and pushes them over WebSockets to connected clients
+3. You need to handle: What if the broadcast fails after the commit? What if a client reconnects between commit and notification? What if two transactions commit simultaneously and broadcasts arrive out of order? What about new clients that join mid-game — how do they get the current state?
+
+Each of these is solvable, but each requires code: a pub/sub layer (Redis?), a WebSocket connection manager, a state serialization protocol, a reconnection/replay mechanism.
+
+**SpacetimeDB collapses all of this into one primitive.** The transaction commit **is** the broadcast. Subscribers see every committed change, in order, automatically. A new client subscribing gets the current state as a snapshot, then a live stream of changes. There is no gap between "data written" and "clients notified" — they're the same operation.
+
+For this demo, that means:
+- The `placeSquare` reducer inserts/updates rows → clients see squares appear and adjust mid-flight. Zero notification code.
+- The `cursorEvent` table inserts a transient row → all clients see the cursor move → the row is deleted. Zero pub/sub code.
+- A player refreshes the page → subscription replays the full `square` table → the world rebuilds itself. Zero state-sync code.
+
+The space-time model (spatial data + temporal subscriptions) turns what would be ~500 lines of server infrastructure into a database schema and a few reducers.
+
 ## Client Architecture
 
 The client is intentionally simple — a full-screen HTML canvas with no framework:
