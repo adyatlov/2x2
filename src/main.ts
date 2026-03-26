@@ -132,10 +132,11 @@ const conn = DbConnection.builder()
     conn.db.config.onUpdate((_ctx, _old, config) => game.setConfig(config));
   })
   .onDisconnect(() => {
-    console.log('Disconnected');
-    statusEl.textContent = 'disconnected';
+    console.log('Disconnected — will reconnect in 2s');
+    statusEl.textContent = 'reconnecting...';
     statusEl.style.opacity = '1';
     statusEl.style.color = '#e94560';
+    setTimeout(() => location.reload(), 2000);
   })
   .onConnectError((_ctx: ErrorContext, error: Error) => {
     console.error('Connection error:', error);
@@ -183,4 +184,18 @@ canvas.addEventListener('mousemove', (e) => {
     cursorThrottleTimer = null;
     conn.reducers.updateCursor({ col: lastCursorCol, y: lastCursorY });
   }, 80);
+});
+
+// --- Auto-reconnect when phone wakes up ---
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') {
+    // Give the connection a moment to recover, then reload if still dead
+    setTimeout(() => {
+      try {
+        conn.reducers.updateCursor({ col: 0, y: 0 });
+      } catch {
+        location.reload();
+      }
+    }, 1000);
+  }
 });

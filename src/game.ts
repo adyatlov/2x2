@@ -222,12 +222,20 @@ export function createGame(canvas: HTMLCanvasElement) {
       if (sq.visuallySettled) {
         currentY = sq.yEnd;
       } else {
-        const elapsedSec = (nowMs - sq.tStartMs) / 1000;
-        currentY = sq.yStart + 0.5 * config.gravity * elapsedSec * elapsedSec;
-
-        if (currentY >= sq.yEnd) {
+        const duration = sq.tEndMs - sq.tStartMs;
+        if (duration <= 0) {
           currentY = sq.yEnd;
           sq.visuallySettled = true;
+        } else {
+          // Progress 0..1 based on server-provided timing (clock-independent duration)
+          const progress = Math.min(1, (nowMs - sq.tStartMs) / duration);
+          // Quadratic ease-in = gravity curve: y = y0 + (y1 - y0) * t²
+          currentY = sq.yStart + (sq.yEnd - sq.yStart) * progress * progress;
+
+          if (progress >= 1) {
+            currentY = sq.yEnd;
+            sq.visuallySettled = true;
+          }
         }
       }
 
