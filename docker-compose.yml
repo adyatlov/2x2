@@ -26,6 +26,8 @@ services:
     environment:
       SPACETIMEDB_SERVER: http://2x2-spacetimedb:3000
       SPACETIMEDB_DB_NAME: game
+    volumes:
+      - init-config:/root/.config/spacetime
     networks:
       - default
 
@@ -44,6 +46,7 @@ services:
 
 volumes:
   stdb-data:
+  init-config:
 
 networks:
   proxy:
