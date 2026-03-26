@@ -1,6 +1,7 @@
 import { DbConnection, type ErrorContext } from './module_bindings';
 import { type Identity } from 'spacetimedb';
 import { createGame } from './game';
+import { COLORS } from './constants';
 
 const HOST =
   import.meta.env.VITE_SPACETIMEDB_HOST ??
@@ -9,9 +10,52 @@ const DB_NAME = import.meta.env.VITE_SPACETIMEDB_DB_NAME ?? 'game';
 
 const canvas = document.getElementById('game') as HTMLCanvasElement;
 const statusEl = document.getElementById('status')!;
+const menuBtn = document.getElementById('menu-btn')!;
+const overlay = document.getElementById('overlay')!;
+const nameInput = document.getElementById('name-input') as HTMLInputElement;
+const colorGrid = document.getElementById('color-grid')!;
+const saveBtn = document.getElementById('save-btn')!;
+const nukeBtn = document.getElementById('nuke-btn')!;
 
 const game = createGame(canvas);
 
+let selectedColor = 0;
+
+// --- Color palette ---
+COLORS.forEach((color, i) => {
+  const swatch = document.createElement('div');
+  swatch.className = 'color-swatch';
+  swatch.style.background = color;
+  swatch.dataset.index = String(i);
+  swatch.addEventListener('click', () => {
+    selectedColor = i;
+    updateColorSelection();
+  });
+  colorGrid.appendChild(swatch);
+});
+
+function updateColorSelection() {
+  colorGrid.querySelectorAll('.color-swatch').forEach((el) => {
+    const swatch = el as HTMLElement;
+    swatch.classList.toggle('selected', swatch.dataset.index === String(selectedColor));
+  });
+}
+
+// --- Menu dialog ---
+menuBtn.addEventListener('click', () => {
+  overlay.classList.add('open');
+});
+
+overlay.addEventListener('click', (e) => {
+  if (e.target === overlay) overlay.classList.remove('open');
+});
+
+// --- Cursor throttle ---
+let cursorThrottleTimer: ReturnType<typeof setTimeout> | null = null;
+let lastCursorCol = -1;
+let lastCursorY = -1;
+
+// --- Connection ---
 const conn = DbConnection.builder()
   .withUri(HOST)
   .withDatabaseName(DB_NAME)
@@ -21,20 +65,20 @@ const conn = DbConnection.builder()
     console.log('Connected:', identity.toHexString());
     statusEl.textContent = 'connected';
 
-    // Subscribe to all tables
     conn
       .subscriptionBuilder()
       .onApplied(() => {
         // Load config
         const config = conn.db.config.id.find(0);
-        if (config) {
-          game.setConfig(config);
-        }
+        if (config) game.setConfig(config);
 
-        // Set player color from player table
+        // Set player info from DB
         const player = conn.db.player.identity.find(identity);
         if (player) {
           game.setPlayerColor(player.colorIndex);
+          selectedColor = player.colorIndex;
+          nameInput.value = player.name || '';
+          updateColorSelection();
         }
 
         // Load existing squares
@@ -42,10 +86,14 @@ const conn = DbConnection.builder()
           game.addSquare(sq);
         }
 
-        // Start rendering
+        // Subscribe to cursor events (event tables need explicit subscription)
+        conn
+          .subscriptionBuilder()
+          .onApplied(() => {})
+          .subscribe('SELECT * FROM cursor_event');
+
         game.start();
 
-        // Hide status after a moment
         setTimeout(() => {
           statusEl.style.opacity = '0';
           statusEl.style.transition = 'opacity 1s';
@@ -53,22 +101,22 @@ const conn = DbConnection.builder()
       })
       .subscribeToAllTables();
 
-    // Live updates
-    conn.db.square.onInsert((_ctx, sq) => {
-      game.addSquare(sq);
+    // Live updates — squares
+    conn.db.square.onInsert((_ctx, sq) => game.addSquare(sq));
+    conn.db.square.onUpdate((_ctx, _old, sq) => game.updateSquare(sq));
+    conn.db.square.onDelete((_ctx, sq) => game.removeSquare(sq.id));
+
+    // Live updates — cursor events (event table: only onInsert fires)
+    conn.db.cursorEvent.onInsert((_ctx, c) => {
+      if (c.identity.toHexString() === identity.toHexString()) return;
+      const p = conn.db.player.identity.find(c.identity);
+      game.setCursor(c.identity.toHexString(), c.col, c.y, p?.name || '', p?.colorIndex ?? 0);
     });
 
-    conn.db.square.onUpdate((_ctx, _old, sq) => {
-      game.updateSquare(sq);
-    });
+    // Live updates — player info changes don't need cursor refresh
+    // (cursor events will pick up new names on next move)
 
-    conn.db.square.onDelete((_ctx, sq) => {
-      game.removeSquare(sq.id);
-    });
-
-    conn.db.config.onUpdate((_ctx, _old, config) => {
-      game.setConfig(config);
-    });
+    conn.db.config.onUpdate((_ctx, _old, config) => game.setConfig(config));
   })
   .onDisconnect(() => {
     console.log('Disconnected');
@@ -83,15 +131,37 @@ const conn = DbConnection.builder()
   })
   .build();
 
-// Nuke button
-document.getElementById('nuke')!.addEventListener('click', () => {
-  conn.reducers.clearField({});
+// --- Save player settings ---
+saveBtn.addEventListener('click', () => {
+  conn.reducers.setPlayerInfo({ name: nameInput.value, colorIndex: selectedColor });
+  game.setPlayerColor(selectedColor);
+  overlay.classList.remove('open');
 });
 
-// Click to drop a square
+// --- Nuke ---
+nukeBtn.addEventListener('click', () => {
+  conn.reducers.clearField({});
+  overlay.classList.remove('open');
+});
+
+// --- Click to drop ---
 canvas.addEventListener('click', (e) => {
   const col = game.colFromX(e.clientX);
   const yStart = game.yStartFromY(e.clientY);
-  game.spawnGhost(col, yStart); // instant visual feedback
+  game.spawnGhost(col, yStart);
   conn.reducers.placeSquare({ col, yStart });
+});
+
+// --- Send cursor position (throttled) ---
+canvas.addEventListener('mousemove', (e) => {
+  const col = game.colFromX(e.clientX);
+  const y = game.yStartFromY(e.clientY);
+  if (col === lastCursorCol && Math.abs(y - lastCursorY) < 0.3) return;
+  lastCursorCol = col;
+  lastCursorY = y;
+  if (cursorThrottleTimer) return;
+  cursorThrottleTimer = setTimeout(() => {
+    cursorThrottleTimer = null;
+    conn.reducers.updateCursor({ col: lastCursorCol, y: lastCursorY });
+  }, 80);
 });

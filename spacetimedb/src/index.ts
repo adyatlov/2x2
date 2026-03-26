@@ -21,6 +21,7 @@ const spacetimedb = schema({
     { public: true },
     {
       identity: t.identity().primaryKey(),
+      name: t.string(),
       colorIndex: t.u8(),
       online: t.bool(),
     }
@@ -37,6 +38,14 @@ const spacetimedb = schema({
       tEndMs: t.f64(), // server timestamp in ms when it lands
       settled: t.bool(),
       colorIndex: t.u8(),
+    }
+  ),
+  cursorEvent: table(
+    { public: true, event: true },
+    {
+      identity: t.identity(),
+      col: t.u16(),
+      y: t.f64(),
     }
   ),
 });
@@ -79,6 +88,7 @@ export const onConnect = spacetimedb.clientConnected((ctx) => {
   } else {
     ctx.db.player.insert({
       identity: ctx.sender,
+      name: '',
       colorIndex: identityToColorIndex(ctx.sender),
       online: true,
     });
@@ -91,6 +101,32 @@ export const onDisconnect = spacetimedb.clientDisconnected((ctx) => {
     ctx.db.player.identity.update({ ...existing, online: false });
   }
 });
+
+// --- Cursor ---
+
+export const updateCursor = spacetimedb.reducer(
+  { col: t.u16(), y: t.f64() },
+  (ctx, { col, y }) => {
+    ctx.db.cursorEvent.insert({ identity: ctx.sender, col, y });
+  }
+);
+
+// --- Player Settings ---
+
+export const setPlayerInfo = spacetimedb.reducer(
+  { name: t.string(), colorIndex: t.u8() },
+  (ctx, { name, colorIndex }) => {
+    const player = ctx.db.player.identity.find(ctx.sender);
+    if (!player) throw new Error('Player not found');
+    if (colorIndex >= NUM_COLORS) throw new Error('Invalid color');
+    if (name.length > 20) throw new Error('Name too long');
+    ctx.db.player.identity.update({
+      ...player,
+      name: name.trim(),
+      colorIndex,
+    });
+  }
+);
 
 // --- Clear Field ---
 

@@ -21,6 +21,14 @@ interface LocalSquare {
   ghost?: boolean; // optimistic client-side square, not yet confirmed by server
 }
 
+interface RemoteCursor {
+  col: number;
+  y: number;
+  name: string;
+  colorIndex: number;
+  lastSeenMs: number; // for fade-out when player stops moving
+}
+
 interface GameConfig {
   numColumns: number;
   numRows: number;
@@ -41,6 +49,7 @@ export function createGame(canvas: HTMLCanvasElement) {
   let hoverCol = -1;
   let ghostCounter = -1n; // negative IDs for ghosts
   let playerColorIndex = 0;
+  const remoteCursors = new Map<string, RemoteCursor>(); // identity hex → cursor
 
   // --- Public API ---
 
@@ -137,6 +146,14 @@ export function createGame(canvas: HTMLCanvasElement) {
     squares.clear();
   }
 
+  function setCursor(identityHex: string, col: number, y: number, name: string, colorIndex: number) {
+    remoteCursors.set(identityHex, { col, y, name, colorIndex, lastSeenMs: Date.now() });
+  }
+
+  function removeCursor(identityHex: string) {
+    remoteCursors.delete(identityHex);
+  }
+
   function getColWidth(): number {
     return canvas.width / config.numColumns;
   }
@@ -230,6 +247,41 @@ export function createGame(canvas: HTMLCanvasElement) {
       ctx.fillRect(pixelX + 2, pixelY + 2, 2, rowH - 4);
       ctx.globalAlpha = 1.0;
     }
+
+    // Draw remote cursors (fade out after 3s of no updates)
+    const CURSOR_FADE_MS = 3000;
+    for (const [id, cursor] of remoteCursors) {
+      const age = nowMs - cursor.lastSeenMs;
+      if (age > CURSOR_FADE_MS) {
+        remoteCursors.delete(id);
+        continue;
+      }
+      const fade = Math.max(0, 1 - age / CURSOR_FADE_MS);
+      const cx = cursor.col * colW + colW / 2;
+      const cy = cursor.y * rowH;
+      const color = COLORS[cursor.colorIndex % COLORS.length];
+
+      // Crosshair
+      ctx.globalAlpha = 0.3 * fade;
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(cx - 8, cy);
+      ctx.lineTo(cx + 8, cy);
+      ctx.moveTo(cx, cy - 8);
+      ctx.lineTo(cx, cy + 8);
+      ctx.stroke();
+
+      // Name label
+      if (cursor.name) {
+        ctx.globalAlpha = 0.5 * fade;
+        ctx.font = '11px -apple-system, system-ui, sans-serif';
+        ctx.fillStyle = color;
+        ctx.textAlign = 'center';
+        ctx.fillText(cursor.name, cx, cy - 12);
+      }
+      ctx.globalAlpha = 1.0;
+    }
   }
 
   // --- Game Loop ---
@@ -262,6 +314,8 @@ export function createGame(canvas: HTMLCanvasElement) {
     updateSquare,
     removeSquare,
     clearAll,
+    setCursor,
+    removeCursor,
     colFromX,
     yStartFromY,
     start,

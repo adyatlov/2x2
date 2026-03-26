@@ -16,6 +16,7 @@
         height: 100%;
         overflow: hidden;
         background: #1a1a2e;
+        font-family: -apple-system, system-ui, sans-serif;
       }
       canvas {
         display: block;
@@ -33,34 +34,179 @@
         pointer-events: none;
         z-index: 10;
       }
-      #nuke {
+      #menu-btn {
         position: fixed;
         top: 12px;
         right: 48px;
-        z-index: 10;
+        z-index: 20;
         background: transparent;
-        color: #666;
+        color: #555;
         border: 1px solid #333;
         width: 28px;
         height: 28px;
         padding: 0;
-        font-size: 16px;
+        font-size: 18px;
         line-height: 28px;
         text-align: center;
         cursor: pointer;
         border-radius: 4px;
         transition: color 0.2s, border-color 0.2s;
       }
-      #nuke:hover {
-        color: #e94560;
-        border-color: #e94560;
+      #menu-btn:hover {
+        color: #fff;
+        border-color: #555;
+      }
+
+      /* Overlay */
+      #overlay {
+        display: none;
+        position: fixed;
+        inset: 0;
+        z-index: 30;
+        background: rgba(0, 0, 0, 0.5);
+        backdrop-filter: blur(2px);
+      }
+      #overlay.open {
+        display: flex;
+        align-items: flex-start;
+        justify-content: flex-end;
+        padding: 48px 16px 0 0;
+      }
+
+      /* Dialog */
+      #dialog {
+        background: #16213e;
+        border: 1px solid #2a3a5c;
+        border-radius: 12px;
+        padding: 20px;
+        width: 260px;
+        color: #ccc;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+        animation: slideIn 0.15s ease-out;
+      }
+      @keyframes slideIn {
+        from { opacity: 0; transform: translateY(-8px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+      #dialog h3 {
+        font-size: 13px;
+        font-weight: 500;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        color: #667;
+        margin-bottom: 12px;
+      }
+      #dialog label {
+        display: block;
+        font-size: 12px;
+        color: #778;
+        margin-bottom: 4px;
+        margin-top: 14px;
+      }
+      #dialog label:first-of-type {
+        margin-top: 0;
+      }
+      #name-input {
+        width: 100%;
+        padding: 8px 10px;
+        background: #1a1a2e;
+        border: 1px solid #2a3a5c;
+        border-radius: 6px;
+        color: #eee;
+        font-size: 14px;
+        outline: none;
+        transition: border-color 0.2s;
+      }
+      #name-input:focus {
+        border-color: #4cc9f0;
+      }
+      #name-input::placeholder {
+        color: #445;
+      }
+
+      /* Color palette */
+      .color-grid {
+        display: grid;
+        grid-template-columns: repeat(6, 1fr);
+        gap: 6px;
+        margin-top: 6px;
+      }
+      .color-swatch {
+        width: 100%;
+        aspect-ratio: 1;
+        border-radius: 6px;
+        border: 2px solid transparent;
+        cursor: pointer;
+        transition: border-color 0.15s, transform 0.15s;
+      }
+      .color-swatch:hover {
+        transform: scale(1.15);
+      }
+      .color-swatch.selected {
+        border-color: #fff;
+        transform: scale(1.1);
+      }
+
+      /* Divider */
+      .dialog-divider {
+        border: none;
+        border-top: 1px solid #2a3a5c;
+        margin: 16px 0;
+      }
+
+      /* Buttons */
+      .dialog-actions {
+        display: flex;
+        gap: 8px;
+      }
+      .btn {
+        flex: 1;
+        padding: 8px 0;
+        border: none;
+        border-radius: 6px;
+        font-size: 13px;
+        cursor: pointer;
+        transition: opacity 0.2s;
+      }
+      .btn:hover {
+        opacity: 0.85;
+      }
+      .btn-save {
+        background: #4cc9f0;
+        color: #111;
+        font-weight: 600;
+      }
+      .btn-nuke {
+        background: #e94560;
+        color: #fff;
+        flex: 0 0 auto;
+        padding: 8px 14px;
       }
     </style>
   </head>
   <body>
     <canvas id="game"></canvas>
     <div id="status">connecting...</div>
-    <button id="nuke" title="Clear all squares">&#x1F4A5;</button>
+    <button id="menu-btn">&#x2630;</button>
+
+    <div id="overlay">
+      <div id="dialog">
+        <h3>Settings</h3>
+        <label for="name-input">Name</label>
+        <input id="name-input" type="text" maxlength="20" placeholder="Anonymous" />
+
+        <label>Color</label>
+        <div class="color-grid" id="color-grid"></div>
+
+        <hr class="dialog-divider" />
+
+        <div class="dialog-actions">
+          <button class="btn btn-save" id="save-btn">Save</button>
+          <button class="btn btn-nuke" id="nuke-btn" title="Clear all squares">&#x1F4A5;</button>
+        </div>
+      </div>
+    </div>
+
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>
