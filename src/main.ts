@@ -2,6 +2,7 @@ import { DbConnection, type ErrorContext } from './module_bindings';
 import { type Identity } from 'spacetimedb';
 import { createGame } from './game';
 import { COLORS } from './constants';
+import { uniqueNamesGenerator, adjectives, animals } from 'unique-names-generator';
 
 const HOST =
   import.meta.env.VITE_SPACETIMEDB_HOST ??
@@ -77,7 +78,19 @@ const conn = DbConnection.builder()
         if (player) {
           game.setPlayerColor(player.colorIndex);
           selectedColor = player.colorIndex;
-          nameInput.value = player.name || '';
+          // Generate a random name if player has none
+          if (!player.name) {
+            const randomName = uniqueNamesGenerator({
+              dictionaries: [adjectives, animals],
+              separator: ' ',
+              style: 'capital',
+              length: 2,
+            });
+            conn.reducers.setPlayerInfo({ name: randomName, colorIndex: player.colorIndex });
+            nameInput.value = randomName;
+          } else {
+            nameInput.value = player.name;
+          }
           updateColorSelection();
         }
 

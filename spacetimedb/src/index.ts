@@ -119,7 +119,7 @@ export const setPlayerInfo = spacetimedb.reducer(
     const player = ctx.db.player.identity.find(ctx.sender);
     if (!player) throw new Error('Player not found');
     if (colorIndex >= NUM_COLORS) throw new Error('Invalid color');
-    if (name.length > 20) throw new Error('Name too long');
+    if (name.length > 30) throw new Error('Name too long');
     ctx.db.player.identity.update({
       ...player,
       name: name.trim(),
