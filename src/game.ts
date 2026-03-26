@@ -50,6 +50,7 @@ export function createGame(canvas: HTMLCanvasElement) {
   let ghostCounter = -1n; // negative IDs for ghosts
   let playerColorIndex = 0;
   const remoteCursors = new Map<string, RemoteCursor>(); // identity hex → cursor
+  let serverTimeOffsetMs = 0; // client_now - server_now (positive = client ahead)
 
   // --- Public API ---
 
@@ -59,6 +60,15 @@ export function createGame(canvas: HTMLCanvasElement) {
     config.gravity = c.gravity;
   }
 
+  // Estimate clock offset from a server timestamp received "just now"
+  function calibrateClock(serverTimestampMs: number) {
+    serverTimeOffsetMs = Date.now() - serverTimestampMs;
+  }
+
+  function serverNow(): number {
+    return Date.now() - serverTimeOffsetMs;
+  }
+
   function setPlayerColor(colorIndex: number) {
     playerColorIndex = colorIndex;
   }
@@ -66,7 +76,7 @@ export function createGame(canvas: HTMLCanvasElement) {
   // Spawn a ghost square immediately on click (before server responds)
   function spawnGhost(col: number, yStart: number): bigint {
     const id = ghostCounter--;
-    const nowMs = Date.now();
+    const nowMs = serverNow();
     // Estimate yEnd: count squares in this column + 1
     let count = 0;
     for (const sq of squares.values()) {
@@ -192,7 +202,7 @@ export function createGame(canvas: HTMLCanvasElement) {
     const h = canvas.height;
     const colW = getColWidth();
     const rowH = getRowHeight();
-    const nowMs = Date.now();
+    const nowMs = serverNow();
 
     // Background
     ctx.fillStyle = BG_COLOR;
@@ -258,8 +268,9 @@ export function createGame(canvas: HTMLCanvasElement) {
 
     // Draw remote cursors (fade out after 3s of no updates)
     const CURSOR_FADE_MS = 3000;
+    const wallNow = Date.now();
     for (const [id, cursor] of remoteCursors) {
-      const age = nowMs - cursor.lastSeenMs;
+      const age = wallNow - cursor.lastSeenMs;
       if (age > CURSOR_FADE_MS) {
         remoteCursors.delete(id);
         continue;
@@ -316,6 +327,7 @@ export function createGame(canvas: HTMLCanvasElement) {
 
   return {
     setConfig,
+    calibrateClock,
     setPlayerColor,
     spawnGhost,
     addSquare,

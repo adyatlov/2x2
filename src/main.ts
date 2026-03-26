@@ -115,7 +115,11 @@ const conn = DbConnection.builder()
       .subscribeToAllTables();
 
     // Live updates — squares
-    conn.db.square.onInsert((_ctx, sq) => game.addSquare(sq));
+    conn.db.square.onInsert((_ctx, sq) => {
+      // Use fresh inserts to calibrate clock (tStartMs was set by server just now)
+      game.calibrateClock(sq.tStartMs);
+      game.addSquare(sq);
+    });
     conn.db.square.onUpdate((_ctx, _old, sq) => game.updateSquare(sq));
     conn.db.square.onDelete((_ctx, sq) => game.removeSquare(sq.id));
 
