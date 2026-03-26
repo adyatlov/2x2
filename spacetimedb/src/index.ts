@@ -232,7 +232,9 @@ export const placeSquare = spacetimedb.reducer(
     });
 
     // 4. Greedy slot assignment
-    const gravity = GRAVITY;
+    const config = ctx.db.config.id.find(0);
+    if (!config) throw new Error('Config not found');
+    const gravity = config.gravity;
     const totalSlots = pool.length;
     const remaining = [...pool];
     const assignments: {
