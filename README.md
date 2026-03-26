@@ -1,5 +1,7 @@
 # 2x2 — Multiplayer Falling Squares
 
+![2x2 gameplay](screenshot.webp)
+
 A real-time multiplayer game where players click to drop colored squares that fall with gravity and stack. Built as a demo of [SpacetimeDB](https://spacetimedb.com) — a database that doubles as a server.
 
 **Live demo:** [2x2.dyatlov.net](https://2x2.dyatlov.net)
