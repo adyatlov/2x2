@@ -1,10 +1,21 @@
 import { schema, table, t } from 'spacetimedb/server';
+import { ScheduleAt } from 'spacetimedb';
 
 // --- Game Constants ---
 const NUM_COLUMNS = 48;
 const NUM_ROWS = 27; // logical grid height
 const GRAVITY = 60.0; // rows/s², tunable for feel
 const NUM_COLORS = 12;
+
+// --- Schedule table (defined before schema so rowType is available) ---
+const settleSchedule = table(
+  { name: 'settle_schedule', scheduled: (): any => settleSquare },
+  {
+    scheduledId: t.u64().primaryKey().autoInc(),
+    scheduledAt: t.scheduleAt(),
+    squareId: t.u64(),
+  }
+);
 
 const spacetimedb = schema({
   config: table(
@@ -32,14 +43,15 @@ const spacetimedb = schema({
     {
       id: t.u64().primaryKey().autoInc(),
       col: t.u16().index('btree'),
-      yStart: t.f64(), // row-from-top where dropped (fractional)
-      tStartMs: t.f64(), // server timestamp in ms when placed
-      yEnd: t.f64(), // row-from-top where it lands
-      tEndMs: t.f64(), // server timestamp in ms when it lands
+      yStart: t.f64(),
+      tStartMs: t.f64(),
+      yEnd: t.f64(),
+      tEndMs: t.f64(),
       settled: t.bool(),
       colorIndex: t.u8(),
     }
   ),
+
   cursorEvent: table(
     { public: true, event: true },
     {
@@ -48,9 +60,23 @@ const spacetimedb = schema({
       y: t.f64(),
     }
   ),
+
+  settleSchedule,
 });
 
 export default spacetimedb;
+
+// --- Settle scheduled reducer ---
+
+export const settleSquare = spacetimedb.reducer(
+  { arg: settleSchedule.rowType },
+  (ctx, { arg }) => {
+    const sq = ctx.db.square.id.find(arg.squareId);
+    if (sq && !sq.settled) {
+      ctx.db.square.id.update({ ...sq, settled: true });
+    }
+  }
+);
 
 // --- Helpers ---
 
@@ -61,13 +87,6 @@ function identityToColorIndex(identity: { toHexString(): string }): number {
     hash = (hash * 31 + hex.charCodeAt(i)) | 0;
   }
   return Math.abs(hash) % NUM_COLORS;
-}
-
-function timestampToMs(timestamp: { seconds: number; nanoseconds: number } | bigint): number {
-  if (typeof timestamp === 'bigint') {
-    return Number(timestamp) / 1000;
-  }
-  return timestamp.seconds * 1000 + timestamp.nanoseconds / 1_000_000;
 }
 
 // --- Lifecycle Reducers ---
@@ -134,7 +153,22 @@ export const clearField = spacetimedb.reducer((ctx) => {
   for (const sq of [...ctx.db.square.iter()]) {
     ctx.db.square.id.delete(sq.id);
   }
+  // Also clear pending settle schedules
+  for (const s of [...ctx.db.settleSchedule.iter()]) {
+    ctx.db.settleSchedule.scheduledId.delete(s.scheduledId);
+  }
 });
+
+// --- Helper: schedule settling ---
+
+function scheduleSettle(ctx: any, squareId: bigint, tEndMs: number) {
+  const delayMs = Math.max(0, Math.ceil(tEndMs - Date.now()));
+  ctx.db.settleSchedule.insert({
+    scheduledId: 0n,
+    scheduledAt: ScheduleAt.interval(BigInt(delayMs) * 1000n), // microseconds
+    squareId,
+  });
+}
 
 // --- Main Reducer ---
 
@@ -149,25 +183,17 @@ export const placeSquare = spacetimedb.reducer(
 
     const nowMs = Date.now();
 
-    // 1. Lazy settle: mark landed squares as settled
-    const allSquares = [...ctx.db.square.col.filter(col)];
-    for (const sq of allSquares) {
-      if (!sq.settled && nowMs >= sq.tEndMs) {
-        ctx.db.square.id.update({ ...sq, settled: true });
-      }
-    }
-
-    // 2. Re-read after settling updates
+    // 1. Count settled and unsettled squares in this column
     const columnSquares = [...ctx.db.square.col.filter(col)];
     const settledCount = columnSquares.filter((s) => s.settled).length;
     const unsettled = columnSquares.filter((s) => !s.settled);
 
-    // 3. Check column capacity
+    // 2. Check column capacity
     if (settledCount + unsettled.length + 1 > NUM_ROWS) {
       throw new Error('Column is full');
     }
 
-    // 4. Build pool: existing unsettled + new square
+    // 3. Build pool: existing unsettled + new square
     type PoolEntry = {
       id: bigint;
       yStart: number;
@@ -187,14 +213,13 @@ export const placeSquare = spacetimedb.reducer(
     }));
 
     pool.push({
-      id: 0n, // will be assigned by autoInc
+      id: 0n,
       yStart,
       tStartMs: nowMs,
       isNew: true,
     });
 
-    // 5. Greedy slot assignment: for each slot (bottom to top),
-    //    find the square that reaches it earliest
+    // 4. Greedy slot assignment
     const gravity = GRAVITY;
     const totalSlots = pool.length;
     const remaining = [...pool];
@@ -205,8 +230,6 @@ export const placeSquare = spacetimedb.reducer(
     }[] = [];
 
     for (let i = 0; i < totalSlots; i++) {
-      // Slot i: row from bottom = settledCount + i
-      // yEnd in rows-from-top = NUM_ROWS - 1 - (settledCount + i)
       const slotY = NUM_ROWS - 1 - (settledCount + i);
 
       let bestIdx = -1;
@@ -214,14 +237,12 @@ export const placeSquare = spacetimedb.reducer(
 
       for (let j = 0; j < remaining.length; j++) {
         const sq = remaining[j];
-        const dist = slotY - sq.yStart; // distance to fall in grid rows
+        const dist = slotY - sq.yStart;
 
         let tReach: number;
         if (dist <= 0) {
-          // Already at or below this slot
           tReach = sq.tStartMs;
         } else {
-          // t = t_start + sqrt(2 * dist / g) * 1000 (convert seconds to ms)
           tReach = sq.tStartMs + Math.sqrt((2 * dist) / gravity) * 1000;
         }
 
@@ -239,10 +260,10 @@ export const placeSquare = spacetimedb.reducer(
       });
     }
 
-    // 6. Insert new square
+    // 5. Insert new square and schedule its settling
     const newAssignment = assignments.find((a) => a.entry.isNew)!;
-    ctx.db.square.insert({
-      id: 0n, // autoInc
+    const newSquare = ctx.db.square.insert({
+      id: 0n,
       col,
       yStart,
       tStartMs: nowMs,
@@ -251,8 +272,9 @@ export const placeSquare = spacetimedb.reducer(
       settled: false,
       colorIndex: player.colorIndex,
     });
+    scheduleSettle(ctx, newSquare.id, newAssignment.tEndMs);
 
-    // 7. Update existing unsettled squares whose landing changed
+    // 6. Update existing unsettled squares whose landing changed
     for (const a of assignments) {
       if (!a.entry.isNew) {
         if (
@@ -265,6 +287,8 @@ export const placeSquare = spacetimedb.reducer(
             yEnd: a.yEnd,
             tEndMs: a.tEndMs,
           });
+          // Reschedule settling for the new tEndMs
+          scheduleSettle(ctx, a.entry.id, a.tEndMs);
         }
       }
     }
