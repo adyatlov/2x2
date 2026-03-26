@@ -126,6 +126,12 @@ const conn = DbConnection.builder()
   })
   .onConnectError((_ctx: ErrorContext, error: Error) => {
     console.error('Connection error:', error);
+    // If token is invalid (server was recreated), clear it and reload
+    if (error.message?.includes('token') || error.message?.includes('verify')) {
+      localStorage.removeItem('auth_token');
+      location.reload();
+      return;
+    }
     statusEl.textContent = 'error: ' + error.message;
     statusEl.style.color = '#e94560';
   })
